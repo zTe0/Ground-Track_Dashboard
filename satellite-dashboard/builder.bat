@@ -1,0 +1,1 @@
+venv\Scripts\pyinstaller --onefile --collect-all uvicorn --add-data "static;static" main.py

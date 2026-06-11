@@ -1,0 +1,184 @@
+<!-- Author: Matteo Luciardello Lecardi -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satellite Flight Dynamics Dashboard</title>
+    <!-- Leaflet.js CSS for map styling -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* Reset and full-height flexbox layout */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: monospace; display: flex; height: 100vh; background: #1a1a2e; color: #e0e0e0; }
+
+        /* Sidebar panel for telemetry display */
+        #sidebar { width: 300px; padding: 20px; overflow-y: auto; background: #16213e; border-right: 1px solid #0f3460; }
+        #sidebar h1 { font-size: 14px; margin-bottom: 16px; color: #4fc3f7; letter-spacing: 2px; }
+        #sidebar h2 { font-size: 12px; margin-bottom: 8px; color: #4fc3f7; border-bottom: 1px solid #0f3460; padding-bottom: 4px; }
+        #sidebar label { font-size: 11px; display: block; margin-bottom: 4px; color: #90a4ae; }
+        #sidebar select, #sidebar input { width: 100%; padding: 8px; margin-bottom: 8px; background: #0f3460; color: #e0e0e0; border: 1px solid #4fc3f7; border-radius: 4px; font-family: monospace; }
+        #sidebar button { width: 100%; padding: 8px; margin-bottom: 16px; background: #4fc3f7; color: #1a1a2e; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: monospace; }
+        /* Data rows for orbital elements */
+        .data-group { margin-bottom: 16px; }
+        .data-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; }
+        .data-row .label { color: #90a4ae; }
+        .data-row .value { color: #e0e0e0; }
+
+        /* Map fills remaining width */
+        #map { flex: 1; }
+        .status { font-size: 11px; margin-top: 12px; color: #66bb6a; }
+        .pass-item { font-size: 11px; padding: 6px; margin-bottom: 4px; background: #0f3460; border-radius: 4px; }
+        .pass-time { color: #4fc3f7; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h1>SATELLITE FLIGHT DYNAMICS</h1>
+        <label>SELECT SATELLITE</label>
+        <select id="sat-select"></select>
+        <div class="data-group">
+            <h2>GEODETIC POSITION</h2>
+            <div class="data-row"><span class="label">Latitude</span><span class="value" id="lat">--</span></div>
+            <div class="data-row"><span class="label">Longitude</span><span class="value" id="lon">--</span></div>
+            <div class="data-row"><span class="label">Altitude</span><span class="value" id="alt">--</span></div>
+        </div>
+        <div class="data-group">
+            <h2>ORBITAL ELEMENTS</h2>
+            <div class="data-row"><span class="label">Velocity</span><span class="value" id="vel">--</span></div>
+            <div class="data-row"><span class="label">Inclination</span><span class="value" id="inc">--</span></div>
+            <div class="data-row"><span class="label">Period</span><span class="value" id="period">--</span></div>
+            <div class="data-row"><span class="label">Eccentricity</span><span class="value" id="ecc">--</span></div>
+        </div>
+        <div class="data-group">
+            <h2>PASS PREDICTIONS</h2>
+            <label>Observer Lat</label>
+            <input type="number" id="obs-lat" value="40.7128" step="0.01" />
+            <label>Observer Lon</label>
+            <input type="number" id="obs-lon" value="-74.006" step="0.01" />
+            <button id="predict-btn">PREDICT PASSES</button>
+            <div id="passes-list"></div>
+        </div>
+        <div class="status" id="status">Initializing...</div>
+    </div>
+    <div id="map"></div>
+    <!-- Leaflet.js library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map centered on the equator at zoom level 2
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // State: satellite marker, ground track line, and currently selected catalog number
+        let marker = null;
+        let trackLine = null;
+        let currentCatalog = 25544;
+
+        // Red circle icon to represent the satellite on the map
+        const satIcon = L.divIcon({
+            html: '<div style="background:#ff5252;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',
+            iconSize: [12, 12],
+            className: ''
+        });
+
+                // Fetch satellite list from backend and populate the dropdown
+                async function loadSatellites() {
+            const res = await fetch('/api/satellites');
+            const sats = await res.json();
+            const select = document.getElementById('sat-select');
+            sats.forEach(function(s) {
+                const opt = document.createElement('option');
+                opt.value = s.catalog_number;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+            select.value = currentCatalog;
+            select.addEventListener('change', function(e) {
+                currentCatalog = parseInt(e.target.value);
+                updateDashboard();
+            });
+        }
+
+        // Fetch current position and update marker + sidebar data
+        async function updatePosition() {
+            const res = await fetch('/api/satellite/' + currentCatalog);
+            const data = await res.json();
+            if (!data.latitude) return;
+            const latLng = [data.latitude, data.longitude];
+            if (marker) { marker.setLatLng(latLng); }
+            else { marker = L.marker(latLng, {icon: satIcon}).addTo(map); }
+            document.getElementById('lat').textContent = data.latitude.toFixed(4) + '\u00B0';
+            document.getElementById('lon').textContent = data.longitude.toFixed(4) + '\u00B0';
+            document.getElementById('alt').textContent = data.altitude_km.toFixed(1) + ' km';
+            document.getElementById('vel').textContent = data.velocity_km_s.toFixed(2) + ' km/s';
+            document.getElementById('inc').textContent = data.inclination_deg.toFixed(2) + '\u00B0';
+            document.getElementById('period').textContent = data.period_minutes.toFixed(1) + ' min';
+            document.getElementById('ecc').textContent = data.eccentricity.toFixed(6);
+            document.getElementById('status').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+        }
+
+        // Fetch ground track and draw as polyline segments split at the antimeridian
+        async function updateTrack() {
+            const res = await fetch('/api/satellite/' + currentCatalog + '/track');
+            const data = await res.json();
+            if (trackLine) { map.removeLayer(trackLine); }
+            var segments = [];
+            var current = [];
+            data.track.forEach(function(p, i) {
+                if (i > 0 && Math.abs(p.lon - data.track[i-1].lon) > 180) {
+                    segments.push(current);
+                    current = [];
+                }
+                current.push([p.lat, p.lon]);
+            });
+            segments.push(current);
+            trackLine = L.layerGroup(segments.map(function(seg) {
+                return L.polyline(seg, {color: '#4fc3f7', weight: 2, opacity: 0.7});
+            })).addTo(map);
+        }
+
+        // Clear existing layers and redraw everything from scratch
+        async function updateDashboard() {
+            if (marker) { map.removeLayer(marker); marker = null; }
+            if (trackLine) { map.removeLayer(trackLine); trackLine = null; }
+            await updatePosition();
+            await updateTrack();
+            if (marker) { map.setView(marker.getLatLng(), 3); }
+        }
+
+        async function predictPasses() {
+            const lat = document.getElementById('obs-lat').value;
+            const lon = document.getElementById('obs-lon').value;
+            const res = await fetch('/api/satellite/' + currentCatalog + '/passes?lat=' + lat + '&lon=' + lon);
+            const data = await res.json();
+            const list = document.getElementById('passes-list');
+            if (data.passes.length === 0) {
+                list.innerHTML = '<div class="pass-item">No passes found in next 24h</div>';
+                return;
+            }
+            list.innerHTML = data.passes.slice(0, 5).map(function(p) {
+                var rise = new Date(p.rise_time).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                var set = p.set_time ? new Date(p.set_time).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '--';
+                return '<div class="pass-item"><span class="pass-time">' + rise + ' - ' + set + '</span><br/>Max El: ' + p.max_elevation + '\u00B0</div>';
+            }).join('');
+        }
+
+        document.getElementById('predict-btn').addEventListener('click', predictPasses);
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(pos) {
+                document.getElementById('obs-lat').value = pos.coords.latitude.toFixed(4);
+                document.getElementById('obs-lon').value = pos.coords.longitude.toFixed(4);
+            });
+        }
+
+                // Load the satellite list, then trigger the first full render
+                loadSatellites().then(function() { updateDashboard(); });
+        // Re-fetch position every 5 seconds to animate the marker
+        setInterval(updatePosition, 5000);
+    </script>
+</body>
+</html>

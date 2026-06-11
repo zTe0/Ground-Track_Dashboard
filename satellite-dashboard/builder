@@ -1,0 +1,2 @@
+# venv_linux/bin/pip install "fastapi[standard]==0.128.5" pydantic==2.10.6 sgp4==2.24 httpx pyinstaller
+./venv_linux/bin/pyinstaller --onefile --collect-all uvicorn --add-data "static:static" main.py

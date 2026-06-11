@@ -1,0 +1,20 @@
+commit.bat
+
+# Virtual environments
+venv_linux/
+venv/
+ENV/
+
+# PyInstaller build files
+build/
+dist/
+*.spec
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local development files
+.env
