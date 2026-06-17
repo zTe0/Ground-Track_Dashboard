@@ -1,1 +1,1 @@
-venv\Scripts\pyinstaller --onefile --collect-all uvicorn --add-data "static;static" main.py
+venv\Scripts\python.exe -m PyInstaller --onefile --collect-all uvicorn --add-data "static;static" main_mirror.py

@@ -15,11 +15,12 @@ def get_resource_path(relative_path):
         # PyInstaller creates a temporary folder and stores its path in _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
-        base_path = os.path.abspath(".")
+        # Resolve relative to the actual location of main.py
+        base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
 # Create the FastAPI application instance
-app = FastAPI(title="Satellite Flight Dynamics Dashboard")
+app = FastAPI(title="Satellite Ground-Track Dashboard")
 
 # Predefined list of satellites to track (NORAD catalog numbers)
 SATELLITES = [

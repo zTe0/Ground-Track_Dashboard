@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Satellite Flight Dynamics Dashboard</title>
+    <title>Satellite Ground-Track Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🛰️%3C/text%3E%3C/svg%3E" />
     <!-- Leaflet.js CSS for map styling -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -34,9 +35,15 @@
 </head>
 <body>
     <div id="sidebar">
-        <h1>SATELLITE FLIGHT DYNAMICS</h1>
+        <h1>SATELLITE GROUND-TRACK</h1>  
         <label>SELECT SATELLITE</label>
         <select id="sat-select"></select>
+
+        <label>OR ENTER CUSTOM NORAD ID</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+            <input type="number" id="custom-sat-input" placeholder="e.g. 48274" style="margin-bottom: 0;" />
+            <button id="custom-sat-btn" style="margin-bottom: 0; width: 80px;">LOAD</button>
+        </div>
         <div class="data-group">
             <h2>GEODETIC POSITION</h2>
             <div class="data-row"><span class="label">Latitude</span><span class="value" id="lat">--</span></div>
@@ -59,7 +66,29 @@
             <button id="predict-btn">PREDICT PASSES</button>
             <div id="passes-list"></div>
         </div>
-        <div class="status" id="status">Initializing...</div>
+        <div class="status" id="status" style="margin-bottom: 16px;">Initializing...</div>
+        
+        <!-- Cross-Referenced Sidebar Links -->
+        <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid #0f3460; display: flex; flex-direction: column; gap: 12px;">
+            
+            <!-- Link to FastAPI Interactive Docs -->
+            <a href="/docs#" target="_blank" style="color: #4fc3f7; text-decoration: none; font-size: 11px; display: flex; align-items: center; gap: 8px; font-weight: bold; letter-spacing: 1px;">
+                <svg height="16" width="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block;">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                VIEW API DOCUMENTATION
+            </a>
+
+            <!-- GitHub Repository Link -->
+            <a href="https://github.com/zTe0/Ground-Track_Dashboard" target="_blank" style="color: #4fc3f7; text-decoration: none; font-size: 11px; display: flex; align-items: center; gap: 8px; font-weight: bold; letter-spacing: 1px;">
+                <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor" style="display: inline-block;">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                VIEW CODE ON GITHUB
+            </a>
+        </div>
+    </div>
     </div>
     <div id="map"></div>
     <!-- Leaflet.js library -->
@@ -85,6 +114,7 @@
         });
 
                 // Fetch satellite list from backend and populate the dropdown
+                // Fetch satellite list from backend and populate the dropdown with (NORAD ID)
                 async function loadSatellites() {
             const res = await fetch('/api/satellites');
             const sats = await res.json();
@@ -92,7 +122,8 @@
             sats.forEach(function(s) {
                 const opt = document.createElement('option');
                 opt.value = s.catalog_number;
-                opt.textContent = s.name;
+                // UPDATE: Add (NORAD ID) to default options
+                opt.textContent = `${s.name} [${s.catalog_number}]`;
                 select.appendChild(opt);
             });
             select.value = currentCatalog;
@@ -148,6 +179,75 @@
             await updateTrack();
             if (marker) { map.setView(marker.getLatLng(), 3); }
         }
+
+                // Dynamically validate and inject a custom NORAD ID into the dashboard
+                // Dynamically validate, fetch real name, and inject custom satellite
+                // Dynamically validate, fetch real name, and inject custom satellite with (NORAD ID)
+        async function loadCustomSatellite() {
+            const input = document.getElementById('custom-sat-input');
+            const catalogNum = parseInt(input.value);
+            const statusDiv = document.getElementById('status');
+            
+            if (isNaN(catalogNum) || catalogNum <= 0) {
+                alert("Please enter a valid, positive NORAD ID.");
+                return;
+            }
+            
+            statusDiv.textContent = 'Searching catalog...';
+            
+            try {
+                // Fetch the satellite position first to validate the ID and retrieve its actual name
+                const res = await fetch('/api/satellite/' + catalogNum);
+                if (!res.ok) throw new Error("Satellite not found in database.");
+                const data = await res.json();
+                
+                // Confirm we got valid orbital data and a real name
+                if (!data.name || !data.latitude) {
+                    throw new Error("Malformed satellite data returned.");
+                }
+                
+                currentCatalog = catalogNum;
+                const realName = data.name; // This is the real, live name!
+                
+                // Check if this satellite is already in the select dropdown list
+                const select = document.getElementById('sat-select');
+                let exists = false;
+                for (let i = 0; i < select.options.length; i++) {
+                    if (parseInt(select.options[i].value) === catalogNum) {
+                        exists = true;
+                        break;
+                    }
+                }
+                
+                // If it's a new custom satellite, dynamically inject it with real name and (NORAD ID)!
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = catalogNum;
+                    // UPDATE: Displays real name accompanied by (NORAD ID)
+                    opt.textContent = `${realName} [${catalogNum}]`;
+                    select.appendChild(opt);
+                }
+                
+                // Sync UI elements and reload map layers
+                select.value = catalogNum;
+                input.value = ''; // Clear the input field
+                
+                // Update the dashboard with the new satellite
+                await updateDashboard();
+                
+            } catch (err) {
+                alert(`Could not load satellite ${catalogNum}. Please verify the NORAD ID is correct.`);
+                statusDiv.textContent = 'Failed to load custom satellite.';
+            }
+        }
+
+        // Event listeners for custom loading trigger
+        document.getElementById('custom-sat-btn').addEventListener('click', loadCustomSatellite);
+        document.getElementById('custom-sat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadCustomSatellite();
+            }
+        });
 
         async function predictPasses() {
             const lat = document.getElementById('obs-lat').value;
