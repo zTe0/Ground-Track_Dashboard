@@ -1,5 +1,9 @@
 @echo off
 cd /d "%~dp0"
+
+@REM venv\Scripts\activate
+@REM source venv_linux/bin/activate
+
 @REM powershell -Command "satellite-dashboard\venv\scripts\activate"
 satellite-dashboard\venv\Scripts\python.exe -m test1
 cd satellite-dashboard
