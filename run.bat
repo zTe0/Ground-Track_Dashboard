@@ -1,5 +1,9 @@
 @echo off
 cd /d "%~dp0"
+
+@REM venv\Scripts\activate
+@REM source venv_linux/bin/activate
+
 @REM powershell -Command "satellite-dashboard\venv\scripts\activate"
 satellite-dashboard\venv\Scripts\python.exe -m test1
 cd satellite-dashboard
@@ -7,5 +11,6 @@ cd satellite-dashboard
 @REM python -c "import httpx; from orbital import propagate_satellite; r = httpx.get('https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE'); lines = r.text.strip().splitlines(); result = propagate_satellite(lines[1], lines[2]); print('ISS Lat:', round(result['latitude'], 2), 'Lon:', round(result['longitude'], 2), 'Alt:', round(result['altitude_km'], 1), 'km')"
 @REM venv\Scripts\python.exe -m uvicorn main:app --reload
 venv\Scripts\python.exe -m uvicorn main_mirror:app --reload
+cd ..\
 
-pause
+@REM pause

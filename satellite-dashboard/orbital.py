@@ -26,6 +26,8 @@ def propagate_satellite(tle_line1, tle_line2, dt=None):
     # Derive orbital period from mean motion (radians per minute)
     period_minutes = (2 * math.pi / satellite.no_kozai) if satellite.no_kozai != 0 else 90.0
     return {
+        "TLE": f"{tle_line1}",
+        "": f"{tle_line2}",
         "latitude": lat,
         "longitude": lon,
         "altitude_km": alt,

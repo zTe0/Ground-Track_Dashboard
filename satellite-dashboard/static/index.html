@@ -106,16 +106,51 @@
         let trackLine = null;
         let currentCatalog = 25544;
 
+        // Ground station state
+        let gsMarker = null;
+        let visibilityCircle = null;
+
         // Red circle icon to represent the satellite on the map
         const satIcon = L.divIcon({
-            html: '<div style="background:#ff5252;width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',
+            html: '<div style="background:#ff5252;width:12px;height:12px;border-radius:50%;border:2px solid #000;"></div>',
             iconSize: [12, 12],
             className: ''
         });
 
-                // Fetch satellite list from backend and populate the dropdown
+                // Draw ground station marker and 10° elevation visibility footprint.
+        // L.circle uses a metric radius on the Earth's surface, so at higher latitudes
+        // the projected shape naturally flattens into an ellipse — correctly representing
+        // that the visibility cone covers less longitude span away from the equator.
+        function drawGroundStation() {
+            const lat = parseFloat(document.getElementById('obs-lat').value) || 40.7128;
+            const lon = parseFloat(document.getElementById('obs-lon').value) || -74.006;
+
+            if (gsMarker)        { map.removeLayer(gsMarker); }
+            if (visibilityCircle){ map.removeLayer(visibilityCircle); }
+
+            // ~1 750 km radius approximates the horizon distance for a 10° min-elevation
+            // mask looking at a LEO satellite at ~500–600 km altitude.
+            visibilityCircle = L.circle([lat, lon], {
+                radius:      1750000,   // metres
+                color:       '#b8860b', // dark-yellow outline
+                weight:      1.5,
+                opacity:     0.8,
+                fillColor:   '#ffd700', // yellow fill
+                fillOpacity: 0.06
+            }).addTo(map).bindPopup('Visibility footprint (10° elev. mask)');
+
+            gsMarker = L.circleMarker([lat, lon], {
+                radius:      6,
+                color:       '#000000',
+                fillColor:   '#2e5fad',
+                fillOpacity: 0.9,
+                weight:      2
+            }).addTo(map).bindPopup('Ground Station (' + lat.toFixed(4) + ', ' + lon.toFixed(4) + ')');
+        }
+
+        // Fetch satellite list from backend and populate the dropdown
                 // Fetch satellite list from backend and populate the dropdown with (NORAD ID)
-                async function loadSatellites() {
+        async function loadSatellites() {
             const res = await fetch('/api/satellites');
             const sats = await res.json();
             const select = document.getElementById('sat-select');
@@ -252,6 +287,7 @@
         async function predictPasses() {
             const lat = document.getElementById('obs-lat').value;
             const lon = document.getElementById('obs-lon').value;
+            drawGroundStation(); // Refresh marker + footprint when observer coords change
             const res = await fetch('/api/satellite/' + currentCatalog + '/passes?lat=' + lat + '&lon=' + lon);
             const data = await res.json();
             const list = document.getElementById('passes-list');
@@ -276,9 +312,12 @@
         }
 
                 // Load the satellite list, then trigger the first full render
-                loadSatellites().then(function() { updateDashboard(); });
+                loadSatellites().then(function() {
+                    updateDashboard();
+                    drawGroundStation();
+                });
         // Re-fetch position every 5 seconds to animate the marker
-        setInterval(updatePosition, 5000);
+        setInterval(updatePosition,1000);
     </script>
 </body>
 </html>
