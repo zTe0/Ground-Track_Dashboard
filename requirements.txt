@@ -1,0 +1,4 @@
+fastapi[standard]==0.128.5
+pydantic==2.10.6
+sgp4==2.24
+httpx
